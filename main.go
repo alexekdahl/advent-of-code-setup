@@ -3,14 +3,14 @@ package main
 import (
 	"embed"
 	"encoding/json"
-	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
+	"regexp"
 )
 
 type Cred struct {
@@ -19,55 +19,57 @@ type Cred struct {
 
 type Config struct {
 	Year          string
-	Day           string
+	Day           int
 	SessionCookie string
 	Path          string
 }
 
-var DIR_NAME = map[string]string{
-	"1":  "one",
-	"2":  "two",
-	"3":  "three",
-	"4":  "four",
-	"5":  "five",
-	"6":  "six",
-	"7":  "seven",
-	"8":  "eight",
-	"9":  "nine",
-	"10": "ten",
-	"11": "eleven",
-	"12": "twelve",
-	"13": "thirteen",
-	"14": "fourteen",
-	"15": "fifteen",
-	"16": "sixteen",
-	"17": "seventeen",
-	"18": "eighteen",
-	"19": "nineteen",
-	"20": "twenty",
-	"21": "twenty_one",
-	"22": "twenty_two",
-	"23": "twenty_three",
-	"24": "twenty_four",
+func newConfig(y string, d int, sc string, p string) Config {
+	return Config{
+		Year:          y,
+		Day:           d,
+		SessionCookie: sc,
+		Path:          p,
+	}
 }
+
+var (
+	year     = flag.String("year", "", "year of Advent of Code")
+	day      = flag.Int("day", 0, "day of Advent of Code")
+	dirnames = []string{
+		"one",
+		"two",
+		"three",
+		"four",
+		"five",
+		"six",
+		"seven",
+		"eight",
+		"nine",
+		"ten",
+		"eleven",
+		"twelve",
+		"thirteen",
+		"fourteen",
+		"fifteen",
+		"sixteen",
+		"seventeen",
+		"eighteen",
+		"nineteen",
+		"twenty",
+		"twenty_one",
+		"twenty_two",
+		"twenty_three",
+		"twenty_four",
+	}
+)
 
 //go:embed creds.json
 var content embed.FS
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("Need arguments")
-		os.Exit(1)
-	}
-
-	year, day := os.Args[1], os.Args[2]
-
-	if year == "" || day == "" {
-		fmt.Println("Both year and day needs to be provided")
-		os.Exit(1)
-	}
-
-	err := assertArgs(year, day)
+	flag.Parse()
+	err := validateArgs(*year, *day)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,11 +79,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dirName := year + "_" + DIR_NAME[day]
+	dirName := fmt.Sprintf("%s_%s", *year, dirnames[*day-1])
 	path := filepath.Join(pwd, dirName)
 
-	err = assertAndCreateFolder(path)
-	if err != nil {
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
 		log.Fatal(err)
 	}
 
@@ -89,94 +90,79 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	config := Config{
-		Year:          year,
-		Day:           day,
-		Path:          filepath.Join(path, "input.txt"),
-		SessionCookie: sessionCookie,
-	}
-	err = downloadInput(config)
-	if err != nil {
+
+	path = filepath.Join(path, "input.txt")
+	config := newConfig(*year, *day, sessionCookie, path)
+	if err := downloadInput(config); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func assertArgs(year string, day string) error {
-	if len(year) != 4 {
-		return errors.New("Not a valid year")
-	}
-
-	if len(day) > 2 {
-		return errors.New("Not a valid day")
-	}
-
-	_, err := strconv.Atoi(day)
-	if err != nil {
-		return errors.New("Not a valid day")
-	}
-
-	return nil
-}
-
-func assertAndCreateFolder(path string) error {
-	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
-		err := os.Mkdir(path, os.ModePerm)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func getSessionCookie() (string, error) {
+	var cred Cred
+
 	bytes, err := content.ReadFile("creds.json")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read creds.json: %w", err)
 	}
-
-	var cred Cred
-	json.Unmarshal(bytes, &cred)
-	if cred.SessionCookie == "" {
-		return "", errors.New("No session")
+	if err := json.Unmarshal(bytes, &cred); err != nil {
+		return "", fmt.Errorf("failed to unmarshal creds.json: %w", err)
 	}
 
 	return cred.SessionCookie, nil
 }
 
-func downloadInput(config Config) error {
-	client := new(http.Client)
-
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/%s/day/%s/input", config.Year, config.Day), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("User-Agent", "github.com/AlexEkdahl")
-
-	cookie := new(http.Cookie)
-	cookie.Name, cookie.Value = "session", config.SessionCookie
-	req.AddCookie(cookie)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+func validateArgs(y string, d int) error {
+	if y == "" || d == 0 {
+		return fmt.Errorf("Both year and day needs to be provided")
 	}
 
+	if v := isValidYear(y); !v {
+		return fmt.Errorf("Not a valid year")
+	}
+
+	return nil
+}
+
+func isValidYear(year string) bool {
+	match, _ := regexp.MatchString("^[0-9]{4}$", year)
+	return match
+}
+
+func downloadInput(c Config) error {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/%s/day/%d/input", c.Year, c.Day), nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.AddCookie(&http.Cookie{
+		Name:  "session",
+		Value: c.SessionCookie,
+	})
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return errors.New(resp.Status)
+		return fmt.Errorf("failed to download input: %s", resp.Status)
 	}
 
-	file, err := os.OpenFile(config.Path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666)
-	if err != nil {
-		return err
+	if _, err := os.Stat(c.Path); err == nil {
+		// file exists, return without performing copy operation
+		return nil
 	}
 
-	defer file.Close()
-
-	_, err = io.Copy(file, resp.Body)
+	f, err := os.Create(c.Path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := io.Copy(f, resp.Body); err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
 	}
 
 	return nil
