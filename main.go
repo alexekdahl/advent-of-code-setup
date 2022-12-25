@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -34,8 +35,8 @@ func newConfig(y string, d int, sc string, p string) Config {
 }
 
 var (
-	year     = flag.String("year", "", "year of Advent of Code")
-	day      = flag.Int("day", 0, "day of Advent of Code")
+	year     = flag.String("y", "", "year of Advent of Code")
+	day      = flag.Int("d", 0, "day of Advent of Code")
 	dirnames = []string{
 		"one",
 		"two",
@@ -134,7 +135,12 @@ func isValidYear(year string) bool {
 }
 
 func downloadInput(config Config) error {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/%s/day/%d/input", config.Year, config.Day), nil)
+	req, err := http.NewRequestWithContext(
+		context.TODO(),
+		http.MethodGet,
+		fmt.Sprintf("https://adventofcode.com/%s/day/%d/input", config.Year, config.Day),
+		nil,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -150,7 +156,7 @@ func downloadInput(config Config) error {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download input: %s", resp.Status)
 	}
 
