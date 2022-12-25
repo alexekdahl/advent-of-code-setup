@@ -14,7 +14,7 @@ import (
 )
 
 type Cred struct {
-	SessionCookie string `json:"SESSION_COOKIE"`
+	SessionCookie string `json:"sessionCookie"`
 }
 
 type Config struct {
@@ -69,6 +69,7 @@ var content embed.FS
 
 func main() {
 	flag.Parse()
+
 	err := validateArgs(*year, *day)
 	if err != nil {
 		log.Fatal(err)
@@ -93,6 +94,7 @@ func main() {
 
 	path = filepath.Join(path, "input.txt")
 	config := newConfig(*year, *day, sessionCookie, path)
+
 	if err := downloadInput(config); err != nil {
 		log.Fatal(err)
 	}
@@ -105,6 +107,7 @@ func getSessionCookie() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read creds.json: %w", err)
 	}
+
 	if err := json.Unmarshal(bytes, &cred); err != nil {
 		return "", fmt.Errorf("failed to unmarshal creds.json: %w", err)
 	}
@@ -114,11 +117,11 @@ func getSessionCookie() (string, error) {
 
 func validateArgs(y string, d int) error {
 	if y == "" || d == 0 {
-		return fmt.Errorf("Both year and day needs to be provided")
+		return fmt.Errorf("both year and day needs to be provided")
 	}
 
 	if v := isValidYear(y); !v {
-		return fmt.Errorf("Not a valid year")
+		return fmt.Errorf("not a valid year")
 	}
 
 	return nil
@@ -126,18 +129,19 @@ func validateArgs(y string, d int) error {
 
 func isValidYear(year string) bool {
 	match, _ := regexp.MatchString("^[0-9]{4}$", year)
+
 	return match
 }
 
-func downloadInput(c Config) error {
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/%s/day/%d/input", c.Year, c.Day), nil)
+func downloadInput(config Config) error {
+	req, err := http.NewRequest("GET", fmt.Sprintf("https://adventofcode.com/%s/day/%d/input", config.Year, config.Day), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.AddCookie(&http.Cookie{
 		Name:  "session",
-		Value: c.SessionCookie,
+		Value: config.SessionCookie,
 	})
 
 	resp, err := http.DefaultClient.Do(req)
@@ -150,12 +154,12 @@ func downloadInput(c Config) error {
 		return fmt.Errorf("failed to download input: %s", resp.Status)
 	}
 
-	if _, err := os.Stat(c.Path); err == nil {
+	if _, err := os.Stat(config.Path); err == nil {
 		// file exists, return without performing copy operation
 		return nil
 	}
 
-	f, err := os.Create(c.Path)
+	f, err := os.Create(config.Path)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
