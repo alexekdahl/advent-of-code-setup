@@ -34,41 +34,40 @@ func newConfig(y string, d int, sc string, p string) Config {
 	}
 }
 
-var (
-	year     = flag.String("y", "", "year of Advent of Code")
-	day      = flag.Int("d", 0, "day of Advent of Code")
-	dirnames = []string{
-		"one",
-		"two",
-		"three",
-		"four",
-		"five",
-		"six",
-		"seven",
-		"eight",
-		"nine",
-		"ten",
-		"eleven",
-		"twelve",
-		"thirteen",
-		"fourteen",
-		"fifteen",
-		"sixteen",
-		"seventeen",
-		"eighteen",
-		"nineteen",
-		"twenty",
-		"twenty_one",
-		"twenty_two",
-		"twenty_three",
-		"twenty_four",
-	}
-)
-
 //go:embed creds.json
 var content embed.FS
 
 func main() {
+	var (
+		year     = flag.String("y", "", "year of Advent of Code")
+		day      = flag.Int("d", 0, "day of Advent of Code")
+		dirnames = []string{
+			"one",
+			"two",
+			"three",
+			"four",
+			"five",
+			"six",
+			"seven",
+			"eight",
+			"nine",
+			"ten",
+			"eleven",
+			"twelve",
+			"thirteen",
+			"fourteen",
+			"fifteen",
+			"sixteen",
+			"seventeen",
+			"eighteen",
+			"nineteen",
+			"twenty",
+			"twenty_one",
+			"twenty_two",
+			"twenty_three",
+			"twenty_four",
+		}
+	)
 	flag.Parse()
 
 	err := validateArgs(*year, *day)
@@ -84,7 +83,7 @@ func main() {
 	dirName := fmt.Sprintf("%s_%s", *year, dirnames[*day-1])
 	path := filepath.Join(pwd, dirName)
 
-	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+	if err = os.MkdirAll(path, os.ModePerm); err != nil {
 		log.Fatal(err)
 	}
 
@@ -96,7 +95,7 @@ func main() {
 	path = filepath.Join(path, "input.txt")
 	config := newConfig(*year, *day, sessionCookie, path)
 
-	if err := downloadInput(config); err != nil {
+	if err = downloadInput(config); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -109,7 +108,7 @@ func getSessionCookie() (string, error) {
 		return "", fmt.Errorf("failed to read creds.json: %w", err)
 	}
 
-	if err := json.Unmarshal(bytes, &cred); err != nil {
+	if err = json.Unmarshal(bytes, &cred); err != nil {
 		return "", fmt.Errorf("failed to unmarshal creds.json: %w", err)
 	}
 
@@ -135,6 +134,11 @@ func isValidYear(year string) bool {
 }
 
 func downloadInput(config Config) error {
+	if _, err := os.Stat(config.Path); err == nil {
+		// file exists, return without performing copy operation
+		return nil
+	}
+
 	req, err := http.NewRequestWithContext(
 		context.TODO(),
 		http.MethodGet,
@@ -160,18 +164,13 @@ func downloadInput(config Config) error {
 		return fmt.Errorf("failed to download input: %s", resp.Status)
 	}
 
-	if _, err := os.Stat(config.Path); err == nil {
-		// file exists, return without performing copy operation
-		return nil
-	}
-
 	f, err := os.Create(config.Path)
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
 	defer f.Close()
 
-	if _, err := io.Copy(f, resp.Body); err != nil {
+	if _, err = io.Copy(f, resp.Body); err != nil {
 		return fmt.Errorf("failed to write to file: %w", err)
 	}
 
