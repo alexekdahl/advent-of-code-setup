@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -87,9 +86,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	sessionCookie, err := getSessionCookie()
-	if err != nil {
-		log.Fatal(err)
+	sessionCookie := os.Getenv("ADVENT_SESSION_COOKIE")
+	if sessionCookie == "" {
+		log.Fatal("ADVENT_SESSION_COOKIE environment variable not set")
 	}
 
 	path = filepath.Join(path, "input.txt")
@@ -98,21 +97,6 @@ func main() {
 	if err = downloadInput(config); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func getSessionCookie() (string, error) {
-	var cred Cred
-
-	bytes, err := content.ReadFile("creds.json")
-	if err != nil {
-		return "", fmt.Errorf("failed to read creds.json: %w", err)
-	}
-
-	if err = json.Unmarshal(bytes, &cred); err != nil {
-		return "", fmt.Errorf("failed to unmarshal creds.json: %w", err)
-	}
-
-	return cred.SessionCookie, nil
 }
 
 func validateArgs(y string, d int) error {
